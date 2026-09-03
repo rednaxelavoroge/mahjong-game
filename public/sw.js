@@ -1,4 +1,4 @@
-const CACHE_NAME = 'leaf-mahjong-v1';
+const CACHE_NAME = 'leaf-mahjong-v2';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
@@ -16,7 +16,7 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Network first, falling back to cache
+  // Always fetch fresh HTML from network first
   if (event.request.method !== 'GET') return;
 
   event.respondWith(
