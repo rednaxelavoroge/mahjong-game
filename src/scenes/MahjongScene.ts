@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { LevelConfig } from '../game/layouts';
 import { InfiniteLevelGenerator } from '../game/InfiniteLevelGenerator';
 import { Tile, isFree, generateGuaranteedLevel, findOpenPair, smartShuffleRemaining } from '../game/solver';
+import { TileRenderer } from '../game/TileRenderer';
 import { SoundManager } from '../audio/SoundManager';
 import { StorageService } from '../services/StorageService';
 import { AdService } from '../services/AdService';
@@ -13,12 +14,14 @@ import { WheelModal } from '../ui/WheelModal';
 import { VaultModal } from '../ui/VaultModal';
 import { ReferralModal } from '../ui/ReferralModal';
 
-const W = 390;
-const H = 760;
-const TILE_W = 44;
-const TILE_H = 58;
+const W = 420;
+const H = 860;
+// Large, chunky, tactile tiles
+const TILE_W = 58;
+const TILE_H = 78;
 const TRAY_CAPACITY = 4;
-const TRAY_Y = 128;
+const TRAY_Y = 146;
+const TRAY_SLOT_GAP = 70;
 
 interface UndoStep {
   tile: Tile;
@@ -88,8 +91,7 @@ export class MahjongScene extends Phaser.Scene {
   }
 
   create() {
-    this.cameras.main.setBackgroundColor('#082b24');
-    // Generate infinite procedural level config based on levelNumber
+    this.cameras.main.setBackgroundColor('#06241c');
     this.levelConfig = InfiniteLevelGenerator.getLevelConfig(this.levelNumber);
 
     // Reset runtime stats
@@ -111,14 +113,14 @@ export class MahjongScene extends Phaser.Scene {
     this.createSocialTicker();
     this.drawControls();
 
-    // Board container
-    this.boardContainer = this.add.container(W / 2, 385);
+    // Board container placed comfortably in the center
+    this.boardContainer = this.add.container(W / 2, 455);
 
-    // Generate guaranteed solvable board with Golden Jackpot Tiles
+    // Generate guaranteed solvable board with Golden Tiles
     this.tiles = generateGuaranteedLevel(this.levelConfig);
     this.renderTiles();
 
-    // Start level timer
+    // Level timer
     if (this.timerEvent) this.timerEvent.destroy();
     this.timerEvent = this.time.addEvent({
       delay: 1000,
@@ -129,7 +131,7 @@ export class MahjongScene extends Phaser.Scene {
       loop: true,
     });
 
-    // Start live social feed ticker (updates every 16 seconds)
+    // Social feed ticker (every 16 seconds)
     if (this.socialTimerEvent) this.socialTimerEvent.destroy();
     this.socialTimerEvent = this.time.addEvent({
       delay: 16000,
@@ -142,43 +144,44 @@ export class MahjongScene extends Phaser.Scene {
 
   private drawBackground() {
     const bg = this.add.graphics();
-    bg.fillGradientStyle(0x0a3930, 0x0a3930, 0x041c17, 0x041c17, 1);
+    // High-contrast luxury dark emerald casino felt table
+    bg.fillGradientStyle(0x0a3930, 0x0a3930, 0x031c16, 0x031c16, 1);
     bg.fillRect(0, 0, W, H);
 
-    for (let i = 0; i < 24; i++) {
-      bg.fillStyle(0x15803d, 0.07);
-      const cx = (i * 73) % W;
-      const cy = 40 + (i * 107) % 680;
-      bg.fillCircle(cx, cy, 35 + (i % 3) * 15);
+    for (let i = 0; i < 28; i++) {
+      bg.fillStyle(0x166534, 0.08);
+      const cx = (i * 79) % W;
+      const cy = 40 + (i * 119) % (H - 80);
+      bg.fillCircle(cx, cy, 40 + (i % 3) * 18);
     }
   }
 
   private createHeader() {
     this.hudContainer = this.add.container(0, 0);
 
-    // Top Header Bar Background
+    // Top Header Bar
     const topBar = this.add.graphics();
-    topBar.fillStyle(0x021612, 0.85);
-    topBar.fillRect(0, 0, W, 86);
+    topBar.fillStyle(0x01130e, 0.9);
+    topBar.fillRect(0, 0, W, 96);
     this.hudContainer.add(topBar);
 
     // 1. Level selector button
     const levelPill = this.add.graphics();
-    levelPill.fillStyle(0x0e4e40, 0.9);
-    levelPill.lineStyle(1, 0x22c55e, 0.4);
-    levelPill.fillRoundedRect(10, 10, 102, 30, 15);
-    levelPill.strokeRoundedRect(10, 10, 102, 30, 15);
+    levelPill.fillStyle(0x0d473a, 0.95);
+    levelPill.lineStyle(1.5, 0x22c55e, 0.5);
+    levelPill.fillRoundedRect(12, 12, 110, 34, 17);
+    levelPill.strokeRoundedRect(12, 12, 110, 34, 17);
     this.hudContainer.add(levelPill);
 
-    const levelTitle = this.add.text(61, 25, `УР. ${this.levelNumber} ▾`, {
+    const levelTitle = this.add.text(67, 29, `УР. ${this.levelNumber} ▾`, {
       fontFamily: 'system-ui, sans-serif',
-      fontSize: '11px',
+      fontSize: '13px',
       color: '#86efac',
       fontStyle: 'bold',
     }).setOrigin(0.5);
     this.hudContainer.add(levelTitle);
 
-    const levelZone = this.add.zone(61, 25, 102, 30).setInteractive({ useHandCursor: true });
+    const levelZone = this.add.zone(67, 29, 110, 34).setInteractive({ useHandCursor: true });
     levelZone.on('pointerdown', () => this.showLevelSelectModal());
     this.hudContainer.add(levelZone);
 
@@ -186,19 +189,19 @@ export class MahjongScene extends Phaser.Scene {
     const vaultPill = this.add.graphics();
     vaultPill.fillStyle(0x854d0e, 0.95);
     vaultPill.lineStyle(1.5, 0xfacc15, 0.9);
-    vaultPill.fillRoundedRect(118, 10, 110, 30, 15);
-    vaultPill.strokeRoundedRect(118, 10, 110, 30, 15);
+    vaultPill.fillRoundedRect(130, 12, 120, 34, 17);
+    vaultPill.strokeRoundedRect(130, 12, 120, 34, 17);
     this.hudContainer.add(vaultPill);
 
-    this.vaultButtonText = this.add.text(173, 25, `🐷 ${this.economy.getFormattedBalance()}`, {
+    this.vaultButtonText = this.add.text(190, 29, `🐷 ${this.economy.getFormattedBalance()}`, {
       fontFamily: 'system-ui, sans-serif',
-      fontSize: '11px',
+      fontSize: '12px',
       color: '#fef08a',
       fontStyle: 'bold',
     }).setOrigin(0.5);
     this.hudContainer.add(this.vaultButtonText);
 
-    const vaultZone = this.add.zone(173, 25, 110, 30).setInteractive({ useHandCursor: true });
+    const vaultZone = this.add.zone(190, 29, 120, 34).setInteractive({ useHandCursor: true });
     vaultZone.on('pointerdown', () => {
       this.soundMgr.playTileClick();
       VaultModal.show(() => this.updateHud());
@@ -208,20 +211,20 @@ export class MahjongScene extends Phaser.Scene {
     // 3. Referral Friends Button (👥 ДРУЗЬЯ)
     const refPill = this.add.graphics();
     refPill.fillStyle(0x0369a1, 0.95);
-    refPill.lineStyle(1, 0x38bdf8, 0.8);
-    refPill.fillRoundedRect(234, 10, 96, 30, 15);
-    refPill.strokeRoundedRect(234, 10, 96, 30, 15);
+    refPill.lineStyle(1.5, 0x38bdf8, 0.8);
+    refPill.fillRoundedRect(258, 12, 105, 34, 17);
+    refPill.strokeRoundedRect(258, 12, 105, 34, 17);
     this.hudContainer.add(refPill);
 
-    const refText = this.add.text(282, 25, '👥 ДРУЗЬЯ', {
+    const refText = this.add.text(310, 29, '👥 ДРУЗЬЯ', {
       fontFamily: 'system-ui, sans-serif',
-      fontSize: '10px',
+      fontSize: '11px',
       color: '#e0f2fe',
       fontStyle: 'bold',
     }).setOrigin(0.5);
     this.hudContainer.add(refText);
 
-    const refZone = this.add.zone(282, 25, 96, 30).setInteractive({ useHandCursor: true });
+    const refZone = this.add.zone(310, 29, 105, 34).setInteractive({ useHandCursor: true });
     refZone.on('pointerdown', () => {
       this.soundMgr.playTileClick();
       ReferralModal.show(() => this.updateHud());
@@ -230,16 +233,16 @@ export class MahjongScene extends Phaser.Scene {
 
     // 4. Sound Mute Toggle
     const soundPill = this.add.graphics();
-    soundPill.fillStyle(0x0e4e40, 0.9);
-    soundPill.fillCircle(W - 24, 25, 15);
+    soundPill.fillStyle(0x0d473a, 0.95);
+    soundPill.fillCircle(W - 25, 29, 17);
     this.hudContainer.add(soundPill);
 
-    this.soundBtnText = this.add.text(W - 24, 25, this.soundMgr.isMuted() ? '🔇' : '🔊', {
-      fontSize: '13px',
+    this.soundBtnText = this.add.text(W - 25, 29, this.soundMgr.isMuted() ? '🔇' : '🔊', {
+      fontSize: '14px',
     }).setOrigin(0.5);
     this.hudContainer.add(this.soundBtnText);
 
-    const soundZone = this.add.zone(W - 24, 25, 32, 32).setInteractive({ useHandCursor: true });
+    const soundZone = this.add.zone(W - 25, 29, 36, 36).setInteractive({ useHandCursor: true });
     soundZone.on('pointerdown', () => {
       const muted = this.soundMgr.toggleMute();
       this.soundBtnText.setText(muted ? '🔇' : '🔊');
@@ -247,25 +250,25 @@ export class MahjongScene extends Phaser.Scene {
     this.hudContainer.add(soundZone);
 
     // Sub-header row: Timer, Score, Country Tournament link
-    this.timerText = this.add.text(18, 62, '⏱ 00:00', {
+    this.timerText = this.add.text(18, 70, '⏱ 00:00', {
       fontFamily: 'system-ui, monospace',
-      fontSize: '12px',
+      fontSize: '13px',
       color: '#94a3b8',
       fontStyle: 'bold',
     });
     this.hudContainer.add(this.timerText);
 
-    this.scoreText = this.add.text(W / 2, 62, 'СЧЕТ: 0', {
+    this.scoreText = this.add.text(W / 2, 70, 'СЧЕТ: 0', {
       fontFamily: 'system-ui, sans-serif',
-      fontSize: '13px',
+      fontSize: '14px',
       color: '#fef08a',
       fontStyle: 'bold',
     }).setOrigin(0.5, 0);
     this.hudContainer.add(this.scoreText);
 
-    const tourneySmall = this.add.text(W - 18, 62, `🏆 ${this.social.getUserCountry()} Рейтинг`, {
+    const tourneySmall = this.add.text(W - 18, 70, `🏆 ${this.social.getUserCountry()} Рейтинг`, {
       fontFamily: 'system-ui, sans-serif',
-      fontSize: '12px',
+      fontSize: '13px',
       color: '#38bdf8',
       fontStyle: 'bold',
     }).setOrigin(1, 0).setInteractive({ useHandCursor: true });
@@ -277,39 +280,44 @@ export class MahjongScene extends Phaser.Scene {
   }
 
   /**
-   * Creates the 4-slot Tray bar at the top (Vita Mahjong signature mechanic)
+   * Creates the 4-slot Tray bar at the top (Large Vita Mahjong style)
    */
   private createTray() {
     this.traySlotsContainer = this.add.container(0, TRAY_Y);
     this.traySlotsContainer.setDepth(9000);
 
+    const shelfW = 295;
+    const shelfH = 92;
+
     const shelf = this.add.graphics();
-    shelf.fillStyle(0x031814, 0.95);
+    shelf.fillStyle(0x021611, 0.95);
     shelf.lineStyle(2, 0x0f766e, 0.9);
-    shelf.fillRoundedRect(W / 2 - 115, -34, 230, 68, 16);
-    shelf.strokeRoundedRect(W / 2 - 115, -34, 230, 68, 16);
+    shelf.fillRoundedRect(W / 2 - shelfW / 2, -shelfH / 2, shelfW, shelfH, 20);
+    shelf.strokeRoundedRect(W / 2 - shelfW / 2, -shelfH / 2, shelfW, shelfH, 20);
     this.traySlotsContainer.add(shelf);
 
     this.trayWarningGfx = this.add.graphics();
     this.traySlotsContainer.add(this.trayWarningGfx);
 
+    // 4 Large glass slot frames
     for (let i = 0; i < TRAY_CAPACITY; i++) {
       const slotX = this.getTraySlotX(i);
       const slotGfx = this.add.graphics();
-      slotGfx.fillStyle(0x062821, 0.7);
-      slotGfx.lineStyle(1.5, 0x14b8a6, 0.35);
-      slotGfx.fillRoundedRect(slotX - TILE_W / 2, -TILE_H / 2, TILE_W, TILE_H, 6);
-      slotGfx.strokeRoundedRect(slotX - TILE_W / 2, -TILE_H / 2, TILE_W, TILE_H, 6);
+      slotGfx.fillStyle(0x04201a, 0.85);
+      slotGfx.lineStyle(1.5, 0x14b8a6, 0.45);
+      slotGfx.fillRoundedRect(slotX - TILE_W / 2, -TILE_H / 2, TILE_W, TILE_H, 10);
+      slotGfx.strokeRoundedRect(slotX - TILE_W / 2, -TILE_H / 2, TILE_W, TILE_H, 10);
       this.traySlotsContainer.add(slotGfx);
     }
 
-    this.comboBadge = this.add.container(W / 2, TRAY_Y + 44);
+    // Combo streak badge right below tray
+    this.comboBadge = this.add.container(W / 2, TRAY_Y + 58);
     const comboGfx = this.add.graphics();
     comboGfx.fillStyle(0xf59e0b, 0.95);
-    comboGfx.fillRoundedRect(-55, -10, 110, 20, 10);
+    comboGfx.fillRoundedRect(-60, -11, 120, 22, 11);
     this.comboText = this.add.text(0, 0, '🔥 COMBO x2!', {
       fontFamily: 'system-ui, sans-serif',
-      fontSize: '11px',
+      fontSize: '12px',
       color: '#1e293b',
       fontStyle: 'bold',
     }).setOrigin(0.5);
@@ -318,42 +326,37 @@ export class MahjongScene extends Phaser.Scene {
     this.hudContainer.add(this.comboBadge);
   }
 
-  /**
-   * Creates the floating live social feed toast (showing players from user's country)
-   */
   private createSocialTicker() {
-    this.socialTickerContainer = this.add.container(W / 2, 580);
+    this.socialTickerContainer = this.add.container(W / 2, 680);
     this.socialTickerContainer.setDepth(9990);
     this.socialTickerContainer.setAlpha(0);
 
     const tickerBg = this.add.graphics();
-    tickerBg.fillStyle(0x021c17, 0.92);
+    tickerBg.fillStyle(0x011611, 0.92);
     tickerBg.lineStyle(1, 0x10b981, 0.4);
-    tickerBg.fillRoundedRect(-140, -13, 280, 26, 13);
-    tickerBg.strokeRoundedRect(-140, -13, 280, 26, 13);
+    tickerBg.fillRoundedRect(-155, -15, 310, 30, 15);
+    tickerBg.strokeRoundedRect(-155, -15, 310, 30, 15);
     this.socialTickerContainer.add(tickerBg);
 
     this.socialTickerText = this.add.text(0, 0, '', {
       fontFamily: 'system-ui, sans-serif',
-      fontSize: '10px',
+      fontSize: '11px',
       color: '#86efac',
     }).setOrigin(0.5);
     this.socialTickerContainer.add(this.socialTickerText);
 
-    // Initial event after 4 seconds
-    this.time.delayedCall(4000, () => this.triggerSocialNotification());
+    this.time.delayedCall(3500, () => this.triggerSocialNotification());
   }
 
   private triggerSocialNotification() {
     const ev = this.social.getRandomLiveEvent(this.levelNumber);
-    // Strip simple html for Phaser text
     const cleanText = `${ev.avatar} ${ev.text.replace(/<[^>]*>?/gm, '')}`;
     this.socialTickerText.setText(cleanText);
 
     this.tweens.add({
       targets: this.socialTickerContainer,
       alpha: 1,
-      y: 574,
+      y: 672,
       duration: 300,
       ease: 'Back.easeOut',
       onComplete: () => {
@@ -361,7 +364,7 @@ export class MahjongScene extends Phaser.Scene {
           this.tweens.add({
             targets: this.socialTickerContainer,
             alpha: 0,
-            y: 585,
+            y: 685,
             duration: 300,
             ease: 'Sine.easeIn',
           });
@@ -371,7 +374,7 @@ export class MahjongScene extends Phaser.Scene {
   }
 
   private getTraySlotX(index: number): number {
-    return W / 2 - (1.5 - index) * 52;
+    return W / 2 - (1.5 - index) * TRAY_SLOT_GAP;
   }
 
   private updateTimerDisplay() {
@@ -386,62 +389,16 @@ export class MahjongScene extends Phaser.Scene {
 
     for (const tile of sorted) {
       if (tile.removed) continue;
-      const c = this.createTileVisual(tile);
+      // High-Definition Tile Rendering via TileRenderer
+      const c = TileRenderer.createTileContainer(this, tile, TILE_W, TILE_H);
       tile.sprite = c;
+
+      c.setInteractive({ useHandCursor: true });
+      c.on('pointerdown', () => this.handleTileClick(tile));
+      c.setDepth(tile.z * 100 + (tile.y + 400));
+
       this.boardContainer.add(c);
     }
-  }
-
-  private createTileVisual(tile: Tile): Phaser.GameObjects.Container {
-    const container = this.add.container(tile.x, tile.y - tile.z * 5);
-
-    const shadow = this.add.graphics();
-    shadow.fillStyle(0x021410, 0.5);
-    shadow.fillRoundedRect(-TILE_W / 2 + 4, -TILE_H / 2 + 6, TILE_W, TILE_H, 6);
-
-    const baseEdge = this.add.graphics();
-    baseEdge.fillStyle(tile.isGold ? 0xca8a04 : 0xd8cbb5, 1);
-    baseEdge.fillRoundedRect(-TILE_W / 2, -TILE_H / 2 + 3, TILE_W, TILE_H, 6);
-
-    const face = this.add.graphics();
-    if (tile.isGold) {
-      face.fillGradientStyle(0xfef08a, 0xfef08a, 0xeab308, 0xeab308, 1);
-      face.lineStyle(2, 0xfffbeb, 1);
-    } else {
-      face.fillStyle(0xfdfbf7, 1);
-      face.lineStyle(1.5, 0xeee4d0, 1);
-    }
-    face.fillRoundedRect(-TILE_W / 2, -TILE_H / 2, TILE_W, TILE_H - 3, 6);
-    face.strokeRoundedRect(-TILE_W / 2, -TILE_H / 2, TILE_W, TILE_H - 3, 6);
-
-    const highlight = this.add.graphics();
-    highlight.fillStyle(0xffffff, tile.isGold ? 0.65 : 0.4);
-    highlight.fillRoundedRect(-TILE_W / 2 + 3, -TILE_H / 2 + 2, TILE_W - 6, 8, 4);
-
-    const symbolText = this.add.text(0, -2, tile.kind, {
-      fontFamily: 'system-ui, "Segoe UI Emoji", AppleColorEmoji, sans-serif',
-      fontSize: tile.isGold ? '24px' : tile.kind.length > 1 ? '18px' : '26px',
-      color: tile.isGold ? '#78350f' : tile.color,
-      fontStyle: 'bold',
-    }).setOrigin(0.5);
-
-    if (tile.isGold) {
-      this.tweens.add({
-        targets: highlight,
-        alpha: 0.85,
-        duration: 500,
-        yoyo: true,
-        repeat: -1,
-      });
-    }
-
-    container.add([shadow, baseEdge, face, highlight, symbolText]);
-    container.setSize(TILE_W, TILE_H);
-    container.setInteractive({ useHandCursor: true });
-    container.on('pointerdown', () => this.handleTileClick(tile));
-    container.setDepth(tile.z * 100 + (tile.y + 400));
-
-    return container;
   }
 
   private handleTileClick(tile: Tile) {
@@ -489,8 +446,8 @@ export class MahjongScene extends Phaser.Scene {
       targets: sp,
       x: targetX,
       y: targetY,
-      scaleX: 1.05,
-      scaleY: 1.05,
+      scaleX: 1.06,
+      scaleY: 1.06,
       duration: 220,
       ease: 'Cubic.easeOut',
       onComplete: () => {
@@ -624,7 +581,7 @@ export class MahjongScene extends Phaser.Scene {
 
     this.trayWarningGfx.clear();
     this.trayWarningGfx.lineStyle(3, 0xef4444, 1);
-    this.trayWarningGfx.strokeRoundedRect(W / 2 - 115, -34, 230, 68, 16);
+    this.trayWarningGfx.strokeRoundedRect(W / 2 - 295 / 2, -92 / 2, 295, 92, 20);
 
     this.tweens.add({
       targets: this.trayWarningGfx,
@@ -648,32 +605,33 @@ export class MahjongScene extends Phaser.Scene {
     const panel = this.add.graphics();
     panel.fillStyle(0x092e25, 0.98);
     panel.lineStyle(2, 0xef4444, 1);
-    panel.fillRoundedRect(-145, -130, 290, 260, 20);
-    panel.strokeRoundedRect(-145, -130, 290, 260, 20);
+    panel.fillRoundedRect(-155, -140, 310, 280, 22);
+    panel.strokeRoundedRect(-155, -140, 310, 280, 22);
     modal.add(panel);
 
-    const icon = this.add.text(0, -95, '⚠️', { fontSize: '32px' }).setOrigin(0.5);
-    const title = this.add.text(0, -60, 'ЛОТОК ПОЛОН!', {
+    const icon = this.add.text(0, -100, '⚠️', { fontSize: '36px' }).setOrigin(0.5);
+    const title = this.add.text(0, -62, 'ЛОТОК ПОЛОН!', {
       fontFamily: 'system-ui, sans-serif',
-      fontSize: '20px',
+      fontSize: '22px',
       color: '#f87171',
       fontStyle: 'bold',
     }).setOrigin(0.5);
 
     const desc = this.add.text(0, -20, 'Все 4 слота заняты разными костями.\nОсвободите 2 слота, чтобы продолжить!', {
       fontFamily: 'system-ui, sans-serif',
-      fontSize: '12px',
+      fontSize: '13px',
       color: '#e2e8f0',
       align: 'center',
+      lineSpacing: 4,
     }).setOrigin(0.5);
     modal.add([icon, title, desc]);
 
     const adBtnBg = this.add.graphics();
     adBtnBg.fillStyle(0x15803d, 1);
-    adBtnBg.fillRoundedRect(-120, 20, 240, 42, 21);
+    adBtnBg.fillRoundedRect(-125, 22, 250, 44, 22);
     modal.add(adBtnBg);
 
-    const adBtnText = this.add.text(0, 41, '🎬 ОЧИСТИТЬ 2 СЛОТА', {
+    const adBtnText = this.add.text(0, 44, '🎬 ОЧИСТИТЬ 2 СЛОТА', {
       fontFamily: 'system-ui, sans-serif',
       fontSize: '13px',
       color: '#ffffff',
@@ -681,7 +639,7 @@ export class MahjongScene extends Phaser.Scene {
     }).setOrigin(0.5);
     modal.add(adBtnText);
 
-    const adZone = this.add.zone(0, 41, 240, 42).setInteractive({ useHandCursor: true });
+    const adZone = this.add.zone(0, 44, 250, 44).setInteractive({ useHandCursor: true });
     adZone.on('pointerdown', () => {
       this.soundMgr.playTileClick();
       this.adService.showRewardedAd('shuffle').then(watched => {
@@ -693,7 +651,7 @@ export class MahjongScene extends Phaser.Scene {
     });
     modal.add(adZone);
 
-    const undoBtn = this.add.text(0, 95, '↶ Отменить последний ход', {
+    const undoBtn = this.add.text(0, 100, '↶ Отменить последний ход', {
       fontFamily: 'system-ui, sans-serif',
       fontSize: '12px',
       color: '#94a3b8',
@@ -728,7 +686,7 @@ export class MahjongScene extends Phaser.Scene {
   private shakeTray() {
     this.tweens.add({
       targets: this.traySlotsContainer,
-      x: 6,
+      x: 7,
       duration: 45,
       yoyo: true,
       repeat: 3,
@@ -743,7 +701,7 @@ export class MahjongScene extends Phaser.Scene {
     if (!tile.sprite) return;
     this.tweens.add({
       targets: tile.sprite,
-      x: tile.x + 5,
+      x: tile.x + 6,
       duration: 45,
       yoyo: true,
       repeat: 2,
@@ -757,17 +715,17 @@ export class MahjongScene extends Phaser.Scene {
   private spawnScorePopup(x: number, y: number, text: string, color = '#fef08a') {
     const popup = this.add.text(x, y, text, {
       fontFamily: 'system-ui, sans-serif',
-      fontSize: '15px',
+      fontSize: '16px',
       color: color,
       fontStyle: 'bold',
-      stroke: '#021814',
+      stroke: '#01140e',
       strokeThickness: 3,
     }).setOrigin(0.5);
     popup.setDepth(10000);
 
     this.tweens.add({
       targets: popup,
-      y: y - 40,
+      y: y - 45,
       alpha: 0,
       duration: 800,
       ease: 'Sine.easeOut',
@@ -868,7 +826,7 @@ export class MahjongScene extends Phaser.Scene {
       targets: tile.sprite,
       scaleX: 1.15,
       scaleY: 1.15,
-      y: tile.sprite.y - 6,
+      y: tile.sprite.y - 8,
       duration: 180,
       yoyo: true,
       repeat: 2,
@@ -915,9 +873,9 @@ export class MahjongScene extends Phaser.Scene {
   }
 
   private drawControls() {
-    this.statusText = this.add.text(W / 2, 608, 'Забирайте кости в лоток парами!', {
+    this.statusText = this.add.text(W / 2, 725, 'Забирайте кости в лоток парами!', {
       fontFamily: 'system-ui, sans-serif',
-      fontSize: '12px',
+      fontSize: '13px',
       color: '#d1fae5',
       fontStyle: 'bold',
     }).setOrigin(0.5);
@@ -925,7 +883,7 @@ export class MahjongScene extends Phaser.Scene {
     const buttons = [
       {
         id: 'restart',
-        x: 55,
+        x: 60,
         icon: '↻',
         title: 'ЗАНОВО',
         sub: 'Сброс',
@@ -933,7 +891,7 @@ export class MahjongScene extends Phaser.Scene {
       },
       {
         id: 'hint',
-        x: 145,
+        x: 156,
         icon: '✦',
         title: 'ПОДСКАЗКА',
         sub: `${this.hintsLeft} шт.`,
@@ -941,7 +899,7 @@ export class MahjongScene extends Phaser.Scene {
       },
       {
         id: 'shuffle',
-        x: 245,
+        x: 264,
         icon: '🔀',
         title: 'ПЕРЕМЕШАТЬ',
         sub: `${this.shufflesLeft} шт.`,
@@ -949,7 +907,7 @@ export class MahjongScene extends Phaser.Scene {
       },
       {
         id: 'undo',
-        x: 335,
+        x: 360,
         icon: '↶',
         title: 'ОТМЕНА',
         sub: 'Назад',
@@ -960,34 +918,34 @@ export class MahjongScene extends Phaser.Scene {
     for (const b of buttons) {
       const bg = this.add.graphics();
       bg.fillStyle(0x0a3f34, 0.95);
-      bg.lineStyle(1.5, 0x16a34a, 0.8);
-      bg.fillCircle(b.x, 672, 28);
-      bg.strokeCircle(b.x, 672, 28);
+      bg.lineStyle(1.5, 0x16a34a, 0.85);
+      bg.fillCircle(b.x, 786, 30);
+      bg.strokeCircle(b.x, 786, 30);
 
-      const icon = this.add.text(b.x, 666, b.icon, {
+      const icon = this.add.text(b.x, 779, b.icon, {
         fontFamily: 'system-ui, sans-serif',
-        fontSize: '22px',
+        fontSize: '24px',
         color: '#fef08a',
         fontStyle: 'bold',
       }).setOrigin(0.5);
 
-      this.add.text(b.x, 706, b.title, {
+      this.add.text(b.x, 822, b.title, {
         fontFamily: 'system-ui, sans-serif',
-        fontSize: '8px',
+        fontSize: '9px',
         color: '#86efac',
         fontStyle: 'bold',
       }).setOrigin(0.5);
 
-      const subText = this.add.text(b.x, 717, b.sub, {
+      const subText = this.add.text(b.x, 834, b.sub, {
         fontFamily: 'system-ui, sans-serif',
-        fontSize: '8px',
+        fontSize: '9px',
         color: '#94a3b8',
       }).setOrigin(0.5);
 
       if (b.id === 'hint') this.hintSubText = subText;
       if (b.id === 'shuffle') this.shuffleSubText = subText;
 
-      const zone = this.add.zone(b.x, 675, 60, 64).setInteractive({ useHandCursor: true });
+      const zone = this.add.zone(b.x, 790, 64, 68).setInteractive({ useHandCursor: true });
       zone.on('pointerdown', () => {
         this.soundMgr.playTileClick();
         b.action();
@@ -1025,7 +983,6 @@ export class MahjongScene extends Phaser.Scene {
     if (this.timerEvent) this.timerEvent.destroy();
     if (this.socialTimerEvent) this.socialTimerEvent.destroy();
 
-    // Reward for completing level: +25 ₽ to Piggy Bank
     this.economy.addRub(25);
     this.soundMgr.playCoin();
 
@@ -1036,10 +993,8 @@ export class MahjongScene extends Phaser.Scene {
     const timeBonus = Math.max(0, (this.levelConfig.timeLimit - this.timeElapsed) * 5);
     this.score += timeBonus;
 
-    // Save record and unlock next infinite level
     this.storage.saveLevelRecord(this.levelNumber, this.score, this.timeElapsed, stars);
 
-    // Win Modal
     const modal = this.add.container(W / 2, H / 2);
     modal.setDepth(99999);
 
@@ -1051,28 +1006,28 @@ export class MahjongScene extends Phaser.Scene {
     const panel = this.add.graphics();
     panel.fillStyle(0x083329, 0.98);
     panel.lineStyle(2, 0xfacc15, 1);
-    panel.fillRoundedRect(-155, -190, 310, 380, 22);
-    panel.strokeRoundedRect(-155, -190, 310, 380, 22);
+    panel.fillRoundedRect(-165, -200, 330, 400, 24);
+    panel.strokeRoundedRect(-165, -200, 330, 400, 24);
     modal.add(panel);
 
-    const title = this.add.text(0, -155, 'ПОБЕДА!', {
+    const title = this.add.text(0, -165, 'ПОБЕДА!', {
       fontFamily: 'system-ui, sans-serif',
-      fontSize: '26px',
+      fontSize: '28px',
       color: '#fef08a',
       fontStyle: 'bold',
     }).setOrigin(0.5);
     modal.add(title);
 
     const starStr = '★'.repeat(stars) + '☆'.repeat(3 - stars);
-    modal.add(this.add.text(0, -115, starStr, {
+    modal.add(this.add.text(0, -120, starStr, {
       fontFamily: 'system-ui, sans-serif',
-      fontSize: '34px',
+      fontSize: '36px',
       color: '#facc15',
     }).setOrigin(0.5));
 
-    const cashBadge = this.add.text(0, -65, `🎁 В КОПИЛКУ: +${this.currency.formatRub(25)}`, {
+    const cashBadge = this.add.text(0, -68, `🎁 В КОПИЛКУ: +${this.currency.formatRub(25)}`, {
       fontFamily: 'system-ui, sans-serif',
-      fontSize: '15px',
+      fontSize: '16px',
       color: '#4ade80',
       fontStyle: 'bold',
     }).setOrigin(0.5);
@@ -1080,27 +1035,27 @@ export class MahjongScene extends Phaser.Scene {
 
     const stats = this.add.text(0, -20, `Счет: ${this.score.toLocaleString()} • Уровень ${this.levelNumber} пройден!`, {
       fontFamily: 'system-ui, sans-serif',
-      fontSize: '12px',
+      fontSize: '13px',
       color: '#cbd5e1',
     }).setOrigin(0.5);
     modal.add(stats);
 
-    // Double piggy bank button
+    // Double button
     const doubleBg = this.add.graphics();
     doubleBg.fillStyle(0x854d0e, 1);
     doubleBg.lineStyle(1.5, 0xfacc15, 1);
-    doubleBg.fillRoundedRect(-125, 20, 250, 42, 21);
+    doubleBg.fillRoundedRect(-135, 20, 270, 44, 22);
     modal.add(doubleBg);
 
-    const doubleText = this.add.text(0, 41, '🎬 УДВОИТЬ ПРИЗ (x2)', {
+    const doubleText = this.add.text(0, 42, '🎬 УДВОИТЬ ПРИЗ (x2)', {
       fontFamily: 'system-ui, sans-serif',
-      fontSize: '12px',
+      fontSize: '13px',
       color: '#fef08a',
       fontStyle: 'bold',
     }).setOrigin(0.5);
     modal.add(doubleText);
 
-    const doubleZone = this.add.zone(0, 41, 250, 42).setInteractive({ useHandCursor: true });
+    const doubleZone = this.add.zone(0, 42, 270, 44).setInteractive({ useHandCursor: true });
     doubleZone.on('pointerdown', () => {
       this.soundMgr.playTileClick();
       this.adService.showRewardedAd('double_score').then(watched => {
@@ -1117,22 +1072,22 @@ export class MahjongScene extends Phaser.Scene {
     });
     modal.add(doubleZone);
 
-    // Next Level Button (INFINITE PROGRESSION: Level N + 1)
+    // Next Level Button
     const nextLevelNum = this.levelNumber + 1;
     const nextBg = this.add.graphics();
     nextBg.fillStyle(0x15803d, 1);
-    nextBg.fillRoundedRect(-125, 75, 250, 42, 21);
+    nextBg.fillRoundedRect(-135, 78, 270, 44, 22);
     modal.add(nextBg);
 
-    const nextText = this.add.text(0, 96, `УРОВЕНЬ ${nextLevelNum} ▶`, {
+    const nextText = this.add.text(0, 100, `УРОВЕНЬ ${nextLevelNum} ▶`, {
       fontFamily: 'system-ui, sans-serif',
-      fontSize: '13px',
+      fontSize: '14px',
       color: '#ffffff',
       fontStyle: 'bold',
     }).setOrigin(0.5);
     modal.add(nextText);
 
-    const nextZone = this.add.zone(0, 96, 250, 42).setInteractive({ useHandCursor: true });
+    const nextZone = this.add.zone(0, 100, 270, 44).setInteractive({ useHandCursor: true });
     nextZone.on('pointerdown', () => {
       this.soundMgr.playTileClick();
       modal.destroy();
@@ -1141,9 +1096,9 @@ export class MahjongScene extends Phaser.Scene {
     modal.add(nextZone);
 
     // Vault link
-    const vaultLink = this.add.text(0, 145, 'Открыть копилку и вывод средств 🐷', {
+    const vaultLink = this.add.text(0, 152, 'Открыть копилку и вывод средств 🐷', {
       fontFamily: 'system-ui, sans-serif',
-      fontSize: '11px',
+      fontSize: '12px',
       color: '#7dd3fc',
       fontStyle: 'underline',
     }).setOrigin(0.5).setInteractive({ useHandCursor: true });
@@ -1151,9 +1106,6 @@ export class MahjongScene extends Phaser.Scene {
     modal.add(vaultLink);
   }
 
-  /**
-   * Level selector modal with pagination supporting up to level 10,000+
-   */
   private showLevelSelectModal() {
     this.soundMgr.playTileClick();
     const modal = this.add.container(W / 2, H / 2);
@@ -1167,20 +1119,19 @@ export class MahjongScene extends Phaser.Scene {
     const panel = this.add.graphics();
     panel.fillStyle(0x062e25, 0.98);
     panel.lineStyle(1.5, 0x16a34a, 1);
-    panel.fillRoundedRect(-155, -200, 310, 410, 20);
-    panel.strokeRoundedRect(-155, -200, 310, 410, 20);
+    panel.fillRoundedRect(-165, -210, 330, 420, 22);
+    panel.strokeRoundedRect(-165, -210, 330, 420, 22);
     modal.add(panel);
 
-    const title = this.add.text(0, -170, 'ВЫБОР УРОВНЯ', {
+    const title = this.add.text(0, -180, 'ВЫБОР УРОВНЯ', {
       fontFamily: 'system-ui, sans-serif',
-      fontSize: '18px',
+      fontSize: '20px',
       color: '#fef08a',
       fontStyle: 'bold',
     }).setOrigin(0.5);
     modal.add(title);
 
     const maxUnlocked = this.storage.getUnlockedLevel();
-    // Show 6 levels centered around current selection
     let pageStart = Math.max(1, Math.floor((this.levelNumber - 1) / 6) * 6 + 1);
 
     const contentContainer = this.add.container(0, 0);
@@ -1193,35 +1144,35 @@ export class MahjongScene extends Phaser.Scene {
         const lvl = start + i;
         const isUnlocked = lvl <= maxUnlocked;
         const rec = this.storage.getLevelRecord(lvl);
-        const y = -120 + i * 44;
+        const y = -130 + i * 46;
 
         const itemBg = this.add.graphics();
         itemBg.fillStyle(isUnlocked ? 0x0f5546 : 0x1e293b, 0.85);
         if (lvl === this.levelNumber) {
           itemBg.lineStyle(1.5, 0xfacc15, 1);
         }
-        itemBg.fillRoundedRect(-135, y, 270, 38, 10);
-        if (lvl === this.levelNumber) itemBg.strokeRoundedRect(-135, y, 270, 38, 10);
+        itemBg.fillRoundedRect(-145, y, 290, 40, 10);
+        if (lvl === this.levelNumber) itemBg.strokeRoundedRect(-145, y, 290, 40, 10);
         contentContainer.add(itemBg);
 
         const lvlCfg = InfiniteLevelGenerator.getLevelConfig(lvl);
-        const lvlText = this.add.text(-120, y + 11, `${lvl}. ${lvlCfg.name}`, {
+        const lvlText = this.add.text(-130, y + 12, `${lvl}. ${lvlCfg.name}`, {
           fontFamily: 'system-ui, sans-serif',
-          fontSize: '12px',
+          fontSize: '13px',
           color: isUnlocked ? '#ffffff' : '#64748b',
           fontStyle: 'bold',
         });
         contentContainer.add(lvlText);
 
-        const starsText = this.add.text(120, y + 11, isUnlocked ? (rec.completed ? '★'.repeat(rec.stars) : 'НОВЫЙ') : '🔒', {
+        const starsText = this.add.text(130, y + 12, isUnlocked ? (rec.completed ? '★'.repeat(rec.stars) : 'НОВЫЙ') : '🔒', {
           fontFamily: 'system-ui, sans-serif',
-          fontSize: '11px',
+          fontSize: '12px',
           color: isUnlocked ? '#facc15' : '#64748b',
         }).setOrigin(1, 0);
         contentContainer.add(starsText);
 
         if (isUnlocked) {
-          const playZone = this.add.zone(0, y + 19, 270, 38).setInteractive({ useHandCursor: true });
+          const playZone = this.add.zone(0, y + 20, 290, 40).setInteractive({ useHandCursor: true });
           playZone.on('pointerdown', () => {
             this.soundMgr.playTileClick();
             modal.destroy();
@@ -1231,10 +1182,9 @@ export class MahjongScene extends Phaser.Scene {
         }
       }
 
-      // Page Navigation buttons
-      const prevBtn = this.add.text(-80, 150, '◀ Назад', {
+      const prevBtn = this.add.text(-85, 160, '◀ Назад', {
         fontFamily: 'system-ui, sans-serif',
-        fontSize: '11px',
+        fontSize: '12px',
         color: start > 1 ? '#38bdf8' : '#64748b',
       }).setOrigin(0.5).setInteractive({ useHandCursor: start > 1 });
       prevBtn.on('pointerdown', () => {
@@ -1242,9 +1192,9 @@ export class MahjongScene extends Phaser.Scene {
       });
       contentContainer.add(prevBtn);
 
-      const nextBtn = this.add.text(80, 150, 'Вперед ▶', {
+      const nextBtn = this.add.text(85, 160, 'Вперед ▶', {
         fontFamily: 'system-ui, sans-serif',
-        fontSize: '11px',
+        fontSize: '12px',
         color: '#38bdf8',
       }).setOrigin(0.5).setInteractive({ useHandCursor: true });
       nextBtn.on('pointerdown', () => {
@@ -1255,9 +1205,9 @@ export class MahjongScene extends Phaser.Scene {
 
     renderPage(pageStart);
 
-    const closeBtn = this.add.text(0, 182, 'ЗАКРЫТЬ', {
+    const closeBtn = this.add.text(0, 192, 'ЗАКРЫТЬ', {
       fontFamily: 'system-ui, sans-serif',
-      fontSize: '12px',
+      fontSize: '13px',
       color: '#94a3b8',
       fontStyle: 'bold',
     }).setOrigin(0.5).setInteractive({ useHandCursor: true });

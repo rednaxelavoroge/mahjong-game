@@ -22,37 +22,34 @@ export interface TileSymbolDef {
 }
 
 export const TILE_SYMBOLS: TileSymbolDef[] = [
-  // Природа и цветы
-  { char: '✿', category: 'nature', color: '#15803d' }, // Лотос
-  { char: '☘', category: 'nature', color: '#16a34a' }, // Клевер
-  { char: '❀', category: 'nature', color: '#059669' }, // Сакура
+  // Драконы (классика маджонга)
+  { char: '🀄', category: 'dragon', color: '#dc2626' }, // Красный дракон (Хунчжун)
+  { char: '🀅', category: 'dragon', color: '#15803d' }, // Зеленый дракон (Фацай)
+  { char: '🀆', category: 'dragon', color: '#0284c7' }, // Белый дракон (Байбань)
+  { char: '☯', category: 'dragon', color: '#0f766e' }, // Инь-Ян
+  { char: '❂', category: 'dragon', color: '#b45309' }, // Императорское Солнце
+
+  // Иероглифы (Масть 萬 Wan - как в Vita Mahjong)
+  { char: '一萬', category: 'symbol', color: '#b91c1c' }, // 1 Wan
+  { char: '二萬', category: 'symbol', color: '#b91c1c' }, // 2 Wan
+  { char: '三萬', category: 'symbol', color: '#b91c1c' }, // 3 Wan
+  { char: '五萬', category: 'symbol', color: '#b91c1c' }, // 5 Wan
+  { char: '八萬', category: 'symbol', color: '#b91c1c' }, // 8 Wan
+  { char: '九萬', category: 'symbol', color: '#b91c1c' }, // 9 Wan
+
+  // Цветы и сезоны (Традиционный маджонг)
+  { char: '✿', category: 'nature', color: '#16a34a' }, // Лотос
+  { char: '☘', category: 'nature', color: '#15803d' }, // Клевер удачи
+  { char: '❀', category: 'nature', color: '#db2777' }, // Цветущая сакура
   { char: '❁', category: 'nature', color: '#0d9488' }, // Орхидея
-  { char: '❃', category: 'nature', color: '#047857' }, // Бамбуковый лист
-  { char: '❋', category: 'nature', color: '#15803d' }, // Хризантема
+  { char: '❃', category: 'nature', color: '#059669' }, // Бамбук
 
-  // Драконы и стихии
-  { char: '🀄', category: 'dragon', color: '#b91c1c' }, // Красный дракон
-  { char: '🀅', category: 'dragon', color: '#15803d' }, // Зеленый дракон
-  { char: '☯', category: 'dragon', color: '#0f766e' }, // Инь-ян
-  { char: '❂', category: 'dragon', color: '#b45309' }, // Солнце-дракон
-
-  // Небесные светила и ветра
-  { char: '☀', category: 'wind', color: '#d97706' }, // Солнце
-  { char: '☾', category: 'wind', color: '#4338ca' }, // Луна
-  { char: '★', category: 'wind', color: '#eab308' }, // Звезда
-  { char: '✦', category: 'wind', color: '#0284c7' }, // Полярная звезда
-  { char: '❖', category: 'wind', color: '#7c3aed' }, // Ветер Севера
-  { char: '⚜', category: 'wind', color: '#9333ea' }, // Ветер Юга
-
-  // Классические символы и масти
-  { char: '●●', category: 'symbol', color: '#b91c1c' },
-  { char: '◆◆', category: 'symbol', color: '#2563eb' },
-  { char: '♠', category: 'symbol', color: '#334155' },
-  { char: '♥', category: 'symbol', color: '#dc2626' },
-  { char: '♣', category: 'symbol', color: '#166534' },
-  { char: '♦', category: 'symbol', color: '#ea580c' },
-  { char: '◈', category: 'symbol', color: '#475569' },
-  { char: '◉', category: 'symbol', color: '#0891b2' },
+  // Ветра и звезды
+  { char: '☀', category: 'wind', color: '#d97706' }, // Восток (Солнце)
+  { char: '☾', category: 'wind', color: '#4f46e5' }, // Запад (Луна)
+  { char: '★', category: 'wind', color: '#eab308' }, // Северная Звезда
+  { char: '✦', category: 'wind', color: '#0284c7' }, // Полярное Сияние
+  { char: '❖', category: 'wind', color: '#7c3aed' }, // Ветер Юга
 ];
 
 /**

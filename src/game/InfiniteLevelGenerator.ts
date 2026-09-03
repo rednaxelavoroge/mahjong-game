@@ -39,7 +39,8 @@ const ARCHETYPE_NAMES = [
 ];
 
 /**
- * Procedural Infinite Level Generator (Supports Level 1 to 10,000+)
+ * Procedural Infinite Level Generator tuned for LARGE, LUXURY CHUNKY TILES
+ * Maximum 5 columns wide to ensure cards fill the screen comfortably and are crystal clear.
  */
 export class InfiniteLevelGenerator {
   public static getLevelConfig(levelNum: number): LevelConfig {
@@ -52,11 +53,10 @@ export class InfiniteLevelGenerator {
     const archetypeIndex = Math.floor(prng() * ARCHETYPE_NAMES.length);
     const archetypeName = ARCHETYPE_NAMES[archetypeIndex];
 
-    // Spacing between tiles
-    const stepX = 42;
-    const stepY = 46;
+    // Large, comfortable spacing for 60x80px tiles
+    const stepX = 64;
+    const stepY = 70;
 
-    // Time limit scales smoothly
     const timeLimit = Math.min(360, 120 + Math.floor(levelNum / 5) * 15);
 
     return {
@@ -79,110 +79,137 @@ export class InfiniteLevelGenerator {
   ): RawTilePos[] {
     const list: RawTilePos[] = [];
 
-    // Target tile count (always even, between 32 and 68 tiles)
+    // Target pair counts (between 16 and 26 pairs = 32 to 52 large tiles)
     let targetPairs = 16; // 32 tiles base
-    if (levelNum > 2) targetPairs = 20; // 40 tiles
-    if (levelNum > 5) targetPairs = 24; // 48 tiles
-    if (levelNum > 12) targetPairs = 28; // 56 tiles
-    if (levelNum > 25) targetPairs = 30 + Math.floor(prng() * 4); // 60-66 tiles
+    if (levelNum > 2) targetPairs = 18; // 36 tiles
+    if (levelNum > 6) targetPairs = 20; // 40 tiles
+    if (levelNum > 14) targetPairs = 22; // 44 tiles
+    if (levelNum > 25) targetPairs = 24 + Math.floor(prng() * 2); // 48-50 tiles
 
     const totalTiles = targetPairs * 2;
 
     switch (archetypeIndex) {
-      // 0: Черепаха (Turtle)
+      // 0: Черепаха (Turtle) - 5x4 base + 3x2 mid + 2x1 crown
       case 0: {
-        const baseCols = 7;
-        const baseRows = 4;
-        for (let r = 0; r < baseRows; r++) {
-          for (let c = 0; c < baseCols; c++) {
-            list.push({ x: (c - (baseCols - 1) / 2) * stepX, y: (r - (baseRows - 1) / 2) * stepY, z: 0 });
+        // Base: 5 cols x 4 rows = 20
+        for (let r = -1.5; r <= 1.5; r++) {
+          for (let c = -2; c <= 2; c++) {
+            list.push({ x: c * stepX, y: r * stepY, z: 0 });
           }
         }
-        // Wings
-        list.push({ x: -3.5 * stepX, y: 0, z: 0 });
-        list.push({ x: 3.5 * stepX, y: 0, z: 0 });
-
-        // Mid layer
-        for (let r = 0; r < 2; r++) {
-          for (let c = 0; c < 4; c++) {
-            list.push({ x: (c - 1.5) * stepX, y: (r - 0.5) * stepY, z: 1 });
+        // Middle layer: 3 cols x 3 rows = 9
+        for (let r = -1; r <= 1; r++) {
+          for (let c = -1; c <= 1; c++) {
+            list.push({ x: c * stepX, y: r * stepY, z: 1 });
           }
         }
-        // Top crown
-        list.push({ x: -0.5 * stepX, y: 0, z: 2 });
-        list.push({ x: 0.5 * stepX, y: 0, z: 2 });
-        break;
-      }
-
-      // 1: Пирамида (Pyramid)
-      case 1: {
-        // Step 0: 6x4 = 24
-        for (let r = 0; r < 4; r++) {
-          for (let c = 0; c < 6; c++) {
-            list.push({ x: (c - 2.5) * stepX, y: (r - 1.5) * stepY, z: 0 });
-          }
-        }
-        // Step 1: 4x2 = 8
-        for (let r = 0; r < 2; r++) {
-          for (let c = 0; c < 4; c++) {
-            list.push({ x: (c - 1.5) * stepX, y: (r - 0.5) * stepY, z: 1 });
-          }
-        }
-        // Step 2: 2x2 = 4
+        // Top crown: 2x2 = 4
         list.push({ x: -0.5 * stepX, y: -0.5 * stepY, z: 2 });
         list.push({ x: 0.5 * stepX, y: -0.5 * stepY, z: 2 });
         list.push({ x: -0.5 * stepX, y: 0.5 * stepY, z: 2 });
         list.push({ x: 0.5 * stepX, y: 0.5 * stepY, z: 2 });
 
-        // Extra wings if higher level
-        if (totalTiles > 36) {
-          list.push({ x: -3.5 * stepX, y: -0.5 * stepY, z: 0 });
-          list.push({ x: 3.5 * stepX, y: -0.5 * stepY, z: 0 });
-          list.push({ x: -3.5 * stepX, y: 0.5 * stepY, z: 0 });
-          list.push({ x: 3.5 * stepX, y: 0.5 * stepY, z: 0 });
-        }
+        // Peak = 1
+        list.push({ x: 0, y: 0, z: 3 });
         break;
       }
 
-      // 2: Крест Стихий (Cross)
-      case 2: {
-        // Vertical stem
-        for (let r = -3; r <= 3; r++) {
-          list.push({ x: -0.5 * stepX, y: r * stepY, z: 0 });
-          list.push({ x: 0.5 * stepX, y: r * stepY, z: 0 });
-        }
-        // Horizontal bar
-        for (let c = -3; c <= 3; c++) {
-          if (c !== 0 && c !== -1) {
-            list.push({ x: c * stepX, y: -0.5 * stepY, z: 0 });
-            list.push({ x: c * stepX, y: 0.5 * stepY, z: 0 });
+      // 1: Пирамида (Pyramid) - Stepped concentric tiers
+      case 1: {
+        // Tier 0: 5 cols x 5 rows notched corners = 21
+        for (let r = -2; r <= 2; r++) {
+          for (let c = -2; c <= 2; c++) {
+            if (Math.abs(r) === 2 && Math.abs(c) === 2) continue;
+            list.push({ x: c * stepX, y: r * stepY, z: 0 });
           }
         }
-        // Elevated center 2x2
-        list.push({ x: -0.5 * stepX, y: -0.5 * stepY, z: 1 });
-        list.push({ x: 0.5 * stepX, y: -0.5 * stepY, z: 1 });
-        list.push({ x: -0.5 * stepX, y: 0.5 * stepY, z: 1 });
-        list.push({ x: 0.5 * stepX, y: 0.5 * stepY, z: 1 });
+        // Tier 1: 3x3 = 9
+        for (let r = -1; r <= 1; r++) {
+          for (let c = -1; c <= 1; c++) {
+            list.push({ x: c * stepX, y: r * stepY, z: 1 });
+          }
+        }
+        // Tier 2: 2x2 = 4
+        list.push({ x: -0.5 * stepX, y: -0.5 * stepY, z: 2 });
+        list.push({ x: 0.5 * stepX, y: -0.5 * stepY, z: 2 });
+        list.push({ x: -0.5 * stepX, y: 0.5 * stepY, z: 2 });
+        list.push({ x: 0.5 * stepX, y: 0.5 * stepY, z: 2 });
         // Peak
-        list.push({ x: 0, y: 0, z: 2 });
         list.push({ x: 0, y: 0, z: 3 });
+        list.push({ x: 0, y: 0, z: 4 });
+        break;
+      }
+
+      // 2: Крест Стихий (Cross & Diamond)
+      case 2: {
+        // Vertical column (3 cols x 5 rows)
+        for (let r = -2; r <= 2; r++) {
+          list.push({ x: 0, y: r * stepY, z: 0 });
+          list.push({ x: -1 * stepX, y: r * stepY, z: 0 });
+          list.push({ x: 1 * stepX, y: r * stepY, z: 0 });
+        }
+        // Horizontal wings
+        list.push({ x: -2 * stepX, y: 0, z: 0 });
+        list.push({ x: 2 * stepX, y: 0, z: 0 });
+        list.push({ x: -2 * stepX, y: -1 * stepY, z: 0 });
+        list.push({ x: 2 * stepX, y: -1 * stepY, z: 0 });
+
+        // Layer 1 cross
+        for (let r = -1; r <= 1; r++) {
+          list.push({ x: 0, y: r * stepY, z: 1 });
+        }
+        list.push({ x: -1 * stepX, y: 0, z: 1 });
+        list.push({ x: 1 * stepX, y: 0, z: 1 });
+
+        // Layer 2
+        list.push({ x: 0, y: 0, z: 2 });
+        list.push({ x: 0, y: -0.5 * stepY, z: 2 });
         break;
       }
 
       // 3: Крепость (Fortress)
       case 3: {
+        // Outer ring 4x5
         for (let r = -2; r <= 2; r++) {
-          for (let c = -3; c <= 3; c++) {
-            if (Math.abs(r) === 2 && Math.abs(c) === 3) continue; // notched corners
+          for (let c = -2; c <= 2; c++) {
+            if (Math.abs(r) < 2 && Math.abs(c) < 2) continue; // hollow courtyard
             list.push({ x: c * stepX, y: r * stepY, z: 0 });
           }
         }
-        // 4 corner towers on layer 1
-        const towers = [[-2, -1.5], [2, -1.5], [-2, 1.5], [2, 1.5]];
-        for (const [tx, ty] of towers) {
-          list.push({ x: tx * stepX, y: ty * stepY, z: 1 });
+        // Inner courtyard elevated
+        list.push({ x: -0.5 * stepX, y: -0.5 * stepY, z: 1 });
+        list.push({ x: 0.5 * stepX, y: -0.5 * stepY, z: 1 });
+        list.push({ x: -0.5 * stepX, y: 0.5 * stepY, z: 1 });
+        list.push({ x: 0.5 * stepX, y: 0.5 * stepY, z: 1 });
+
+        // 4 Corner watchtowers on layer 1
+        list.push({ x: -2 * stepX, y: -2 * stepY, z: 1 });
+        list.push({ x: 2 * stepX, y: -2 * stepY, z: 1 });
+        list.push({ x: -2 * stepX, y: 2 * stepY, z: 1 });
+        list.push({ x: 2 * stepX, y: 2 * stepY, z: 1 });
+
+        // Central Keep
+        list.push({ x: 0, y: 0, z: 2 });
+        list.push({ x: 0, y: 0, z: 3 });
+        break;
+      }
+
+      // 4: Цветок Лотоса (Lotus Petals)
+      case 4: {
+        // Base petals: diamond formation
+        const petals = [
+          [0, -2], [0, 2], [-2, 0], [2, 0],
+          [-1, -1], [1, -1], [-1, 1], [1, 1],
+          [0, -1], [0, 1], [-1, 0], [1, 0],
+          [-1.5, -0.5], [1.5, -0.5], [-1.5, 0.5], [1.5, 0.5],
+          [-0.5, -1.5], [0.5, -1.5], [-0.5, 1.5], [0.5, 1.5],
+        ];
+        for (const [px, py] of petals) {
+          list.push({ x: px * stepX, y: py * stepY, z: 0 });
         }
-        // Central keep
+        // Lotus Core (Layer 1 & 2)
+        list.push({ x: 0, y: -0.5 * stepY, z: 1 });
+        list.push({ x: 0, y: 0.5 * stepY, z: 1 });
         list.push({ x: -0.5 * stepX, y: 0, z: 1 });
         list.push({ x: 0.5 * stepX, y: 0, z: 1 });
         list.push({ x: 0, y: 0, z: 2 });
@@ -190,24 +217,27 @@ export class InfiniteLevelGenerator {
         break;
       }
 
-      // Default & Other archetypes: Stepped Garden / Temple
+      // Default: Храм (Temple Gateway)
       default: {
-        const rows = 4;
-        const cols = 6;
-        for (let r = 0; r < rows; r++) {
-          for (let c = 0; c < cols; c++) {
-            list.push({ x: (c - (cols - 1) / 2) * stepX, y: (r - (rows - 1) / 2) * stepY, z: 0 });
-          }
+        // Two massive pillars
+        for (let r = -2; r <= 2; r++) {
+          list.push({ x: -1.5 * stepX, y: r * stepY, z: 0 });
+          list.push({ x: 1.5 * stepX, y: r * stepY, z: 0 });
         }
-        // Secondary layer
-        for (let r = 0; r < 2; r++) {
-          for (let c = 0; c < 4; c++) {
-            list.push({ x: (c - 1.5) * stepX, y: (r - 0.5) * stepY, z: 1 });
-          }
+        // Center floor
+        list.push({ x: 0, y: -1 * stepY, z: 0 });
+        list.push({ x: 0, y: 0, z: 0 });
+        list.push({ x: 0, y: 1 * stepY, z: 0 });
+
+        // Roof lintel (Layer 1)
+        for (let c = -2; c <= 2; c++) {
+          list.push({ x: c * stepX, y: -2 * stepY, z: 1 });
         }
-        // Top 2
-        list.push({ x: -0.5 * stepX, y: 0, z: 2 });
-        list.push({ x: 0.5 * stepX, y: 0, z: 2 });
+        // Stepped roof peak (Layer 2)
+        list.push({ x: -1 * stepX, y: -2 * stepY, z: 2 });
+        list.push({ x: 0, y: -2 * stepY, z: 2 });
+        list.push({ x: 1 * stepX, y: -2 * stepY, z: 2 });
+        list.push({ x: 0, y: -2 * stepY, z: 3 });
         break;
       }
     }
@@ -217,7 +247,7 @@ export class InfiniteLevelGenerator {
       list.pop();
     }
 
-    // Adjust count to match desired scale by trimming or mirroring pairs
+    // Adjust to target pair count
     while (list.length > totalTiles && list.length >= 32) {
       list.pop();
       list.pop();
