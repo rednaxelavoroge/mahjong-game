@@ -1,11 +1,13 @@
 import Phaser from 'phaser';
-import { LEVELS, LevelConfig } from '../game/layouts';
+import { LevelConfig } from '../game/layouts';
+import { InfiniteLevelGenerator } from '../game/InfiniteLevelGenerator';
 import { Tile, isFree, generateGuaranteedLevel, findOpenPair, smartShuffleRemaining } from '../game/solver';
 import { SoundManager } from '../audio/SoundManager';
 import { StorageService } from '../services/StorageService';
 import { AdService } from '../services/AdService';
 import { EconomyService } from '../services/EconomyService';
 import { CurrencyService } from '../services/CurrencyService';
+import { SocialService } from '../services/SocialService';
 import { TournamentModal } from '../ui/TournamentModal';
 import { WheelModal } from '../ui/WheelModal';
 import { VaultModal } from '../ui/VaultModal';
@@ -24,7 +26,7 @@ interface UndoStep {
 }
 
 export class MahjongScene extends Phaser.Scene {
-  private levelIndex = 0;
+  private levelNumber = 1;
   private levelConfig!: LevelConfig;
   private tiles: Tile[] = [];
   private undoStack: UndoStep[] = [];
@@ -52,6 +54,7 @@ export class MahjongScene extends Phaser.Scene {
   private adService = AdService.getInstance();
   private economy = EconomyService.getInstance();
   private currency = CurrencyService.getInstance();
+  private social = SocialService.getInstance();
 
   // HUD and UI elements
   private boardContainer!: Phaser.GameObjects.Container;
@@ -67,21 +70,27 @@ export class MahjongScene extends Phaser.Scene {
   private soundBtnText!: Phaser.GameObjects.Text;
   private trayWarningGfx!: Phaser.GameObjects.Graphics;
 
+  // Social live ticker
+  private socialTickerContainer!: Phaser.GameObjects.Container;
+  private socialTickerText!: Phaser.GameObjects.Text;
+  private socialTimerEvent?: Phaser.Time.TimerEvent;
+
   constructor() {
     super('MahjongScene');
   }
 
-  init(data?: { levelIndex?: number }) {
-    if (data && typeof data.levelIndex === 'number') {
-      this.levelIndex = data.levelIndex;
+  init(data?: { levelNumber?: number }) {
+    if (data && typeof data.levelNumber === 'number') {
+      this.levelNumber = Math.max(1, data.levelNumber);
     } else {
-      this.levelIndex = 0;
+      this.levelNumber = this.storage.getUnlockedLevel();
     }
   }
 
   create() {
     this.cameras.main.setBackgroundColor('#082b24');
-    this.levelConfig = LEVELS[this.levelIndex] || LEVELS[0];
+    // Generate infinite procedural level config based on levelNumber
+    this.levelConfig = InfiniteLevelGenerator.getLevelConfig(this.levelNumber);
 
     // Reset runtime stats
     this.score = 0;
@@ -99,12 +108,13 @@ export class MahjongScene extends Phaser.Scene {
     this.drawBackground();
     this.createHeader();
     this.createTray();
+    this.createSocialTicker();
     this.drawControls();
 
     // Board container
     this.boardContainer = this.add.container(W / 2, 385);
 
-    // Generate guaranteed solvable board with Golden Tiles
+    // Generate guaranteed solvable board with Golden Jackpot Tiles
     this.tiles = generateGuaranteedLevel(this.levelConfig);
     this.renderTiles();
 
@@ -119,16 +129,22 @@ export class MahjongScene extends Phaser.Scene {
       loop: true,
     });
 
+    // Start live social feed ticker (updates every 16 seconds)
+    if (this.socialTimerEvent) this.socialTimerEvent.destroy();
+    this.socialTimerEvent = this.time.addEvent({
+      delay: 16000,
+      callback: () => this.triggerSocialNotification(),
+      loop: true,
+    });
+
     this.updateHud();
   }
 
   private drawBackground() {
     const bg = this.add.graphics();
-    // Luxurious dark emerald table felt
     bg.fillGradientStyle(0x0a3930, 0x0a3930, 0x041c17, 0x041c17, 1);
     bg.fillRect(0, 0, W, H);
 
-    // Subtle table watermark pattern
     for (let i = 0; i < 24; i++) {
       bg.fillStyle(0x15803d, 0.07);
       const cx = (i * 73) % W;
@@ -150,11 +166,11 @@ export class MahjongScene extends Phaser.Scene {
     const levelPill = this.add.graphics();
     levelPill.fillStyle(0x0e4e40, 0.9);
     levelPill.lineStyle(1, 0x22c55e, 0.4);
-    levelPill.fillRoundedRect(10, 10, 100, 30, 15);
-    levelPill.strokeRoundedRect(10, 10, 100, 30, 15);
+    levelPill.fillRoundedRect(10, 10, 102, 30, 15);
+    levelPill.strokeRoundedRect(10, 10, 102, 30, 15);
     this.hudContainer.add(levelPill);
 
-    const levelTitle = this.add.text(60, 25, `УР. ${this.levelConfig.id} ▾`, {
+    const levelTitle = this.add.text(61, 25, `УР. ${this.levelNumber} ▾`, {
       fontFamily: 'system-ui, sans-serif',
       fontSize: '11px',
       color: '#86efac',
@@ -162,7 +178,7 @@ export class MahjongScene extends Phaser.Scene {
     }).setOrigin(0.5);
     this.hudContainer.add(levelTitle);
 
-    const levelZone = this.add.zone(60, 25, 100, 30).setInteractive({ useHandCursor: true });
+    const levelZone = this.add.zone(61, 25, 102, 30).setInteractive({ useHandCursor: true });
     levelZone.on('pointerdown', () => this.showLevelSelectModal());
     this.hudContainer.add(levelZone);
 
@@ -193,11 +209,11 @@ export class MahjongScene extends Phaser.Scene {
     const refPill = this.add.graphics();
     refPill.fillStyle(0x0369a1, 0.95);
     refPill.lineStyle(1, 0x38bdf8, 0.8);
-    refPill.fillRoundedRect(236, 10, 95, 30, 15);
-    refPill.strokeRoundedRect(236, 10, 95, 30, 15);
+    refPill.fillRoundedRect(234, 10, 96, 30, 15);
+    refPill.strokeRoundedRect(234, 10, 96, 30, 15);
     this.hudContainer.add(refPill);
 
-    const refText = this.add.text(283, 25, '👥 ДРУЗЬЯ', {
+    const refText = this.add.text(282, 25, '👥 ДРУЗЬЯ', {
       fontFamily: 'system-ui, sans-serif',
       fontSize: '10px',
       color: '#e0f2fe',
@@ -205,7 +221,7 @@ export class MahjongScene extends Phaser.Scene {
     }).setOrigin(0.5);
     this.hudContainer.add(refText);
 
-    const refZone = this.add.zone(283, 25, 95, 30).setInteractive({ useHandCursor: true });
+    const refZone = this.add.zone(282, 25, 96, 30).setInteractive({ useHandCursor: true });
     refZone.on('pointerdown', () => {
       this.soundMgr.playTileClick();
       ReferralModal.show(() => this.updateHud());
@@ -230,7 +246,7 @@ export class MahjongScene extends Phaser.Scene {
     });
     this.hudContainer.add(soundZone);
 
-    // Sub-header row: Timer, Score, Tournament link
+    // Sub-header row: Timer, Score, Country Tournament link
     this.timerText = this.add.text(18, 62, '⏱ 00:00', {
       fontFamily: 'system-ui, monospace',
       fontSize: '12px',
@@ -247,7 +263,7 @@ export class MahjongScene extends Phaser.Scene {
     }).setOrigin(0.5, 0);
     this.hudContainer.add(this.scoreText);
 
-    const tourneySmall = this.add.text(W - 18, 62, '🏆 50 000 ₽', {
+    const tourneySmall = this.add.text(W - 18, 62, `🏆 ${this.social.getUserCountry()} Рейтинг`, {
       fontFamily: 'system-ui, sans-serif',
       fontSize: '12px',
       color: '#38bdf8',
@@ -255,7 +271,7 @@ export class MahjongScene extends Phaser.Scene {
     }).setOrigin(1, 0).setInteractive({ useHandCursor: true });
     tourneySmall.on('pointerdown', () => {
       this.soundMgr.playTileClick();
-      TournamentModal.show();
+      TournamentModal.show(this.levelNumber);
     });
     this.hudContainer.add(tourneySmall);
   }
@@ -267,7 +283,6 @@ export class MahjongScene extends Phaser.Scene {
     this.traySlotsContainer = this.add.container(0, TRAY_Y);
     this.traySlotsContainer.setDepth(9000);
 
-    // Tray shelf backing
     const shelf = this.add.graphics();
     shelf.fillStyle(0x031814, 0.95);
     shelf.lineStyle(2, 0x0f766e, 0.9);
@@ -275,11 +290,9 @@ export class MahjongScene extends Phaser.Scene {
     shelf.strokeRoundedRect(W / 2 - 115, -34, 230, 68, 16);
     this.traySlotsContainer.add(shelf);
 
-    // Shelf warning border (pulses red when 4/4)
     this.trayWarningGfx = this.add.graphics();
     this.traySlotsContainer.add(this.trayWarningGfx);
 
-    // 4 glass slot frames
     for (let i = 0; i < TRAY_CAPACITY; i++) {
       const slotX = this.getTraySlotX(i);
       const slotGfx = this.add.graphics();
@@ -290,7 +303,6 @@ export class MahjongScene extends Phaser.Scene {
       this.traySlotsContainer.add(slotGfx);
     }
 
-    // Combo streak badge right below tray
     this.comboBadge = this.add.container(W / 2, TRAY_Y + 44);
     const comboGfx = this.add.graphics();
     comboGfx.fillStyle(0xf59e0b, 0.95);
@@ -304,6 +316,58 @@ export class MahjongScene extends Phaser.Scene {
     this.comboBadge.add([comboGfx, this.comboText]);
     this.comboBadge.setAlpha(0);
     this.hudContainer.add(this.comboBadge);
+  }
+
+  /**
+   * Creates the floating live social feed toast (showing players from user's country)
+   */
+  private createSocialTicker() {
+    this.socialTickerContainer = this.add.container(W / 2, 580);
+    this.socialTickerContainer.setDepth(9990);
+    this.socialTickerContainer.setAlpha(0);
+
+    const tickerBg = this.add.graphics();
+    tickerBg.fillStyle(0x021c17, 0.92);
+    tickerBg.lineStyle(1, 0x10b981, 0.4);
+    tickerBg.fillRoundedRect(-140, -13, 280, 26, 13);
+    tickerBg.strokeRoundedRect(-140, -13, 280, 26, 13);
+    this.socialTickerContainer.add(tickerBg);
+
+    this.socialTickerText = this.add.text(0, 0, '', {
+      fontFamily: 'system-ui, sans-serif',
+      fontSize: '10px',
+      color: '#86efac',
+    }).setOrigin(0.5);
+    this.socialTickerContainer.add(this.socialTickerText);
+
+    // Initial event after 4 seconds
+    this.time.delayedCall(4000, () => this.triggerSocialNotification());
+  }
+
+  private triggerSocialNotification() {
+    const ev = this.social.getRandomLiveEvent(this.levelNumber);
+    // Strip simple html for Phaser text
+    const cleanText = `${ev.avatar} ${ev.text.replace(/<[^>]*>?/gm, '')}`;
+    this.socialTickerText.setText(cleanText);
+
+    this.tweens.add({
+      targets: this.socialTickerContainer,
+      alpha: 1,
+      y: 574,
+      duration: 300,
+      ease: 'Back.easeOut',
+      onComplete: () => {
+        this.time.delayedCall(5000, () => {
+          this.tweens.add({
+            targets: this.socialTickerContainer,
+            alpha: 0,
+            y: 585,
+            duration: 300,
+            ease: 'Sine.easeIn',
+          });
+        });
+      },
+    });
   }
 
   private getTraySlotX(index: number): number {
@@ -331,17 +395,14 @@ export class MahjongScene extends Phaser.Scene {
   private createTileVisual(tile: Tile): Phaser.GameObjects.Container {
     const container = this.add.container(tile.x, tile.y - tile.z * 5);
 
-    // Drop shadow
     const shadow = this.add.graphics();
     shadow.fillStyle(0x021410, 0.5);
     shadow.fillRoundedRect(-TILE_W / 2 + 4, -TILE_H / 2 + 6, TILE_W, TILE_H, 6);
 
-    // 3D side edge
     const baseEdge = this.add.graphics();
     baseEdge.fillStyle(tile.isGold ? 0xca8a04 : 0xd8cbb5, 1);
     baseEdge.fillRoundedRect(-TILE_W / 2, -TILE_H / 2 + 3, TILE_W, TILE_H, 6);
 
-    // Tile face (ivory or gold gradient)
     const face = this.add.graphics();
     if (tile.isGold) {
       face.fillGradientStyle(0xfef08a, 0xfef08a, 0xeab308, 0xeab308, 1);
@@ -353,12 +414,10 @@ export class MahjongScene extends Phaser.Scene {
     face.fillRoundedRect(-TILE_W / 2, -TILE_H / 2, TILE_W, TILE_H - 3, 6);
     face.strokeRoundedRect(-TILE_W / 2, -TILE_H / 2, TILE_W, TILE_H - 3, 6);
 
-    // Glossy highlight
     const highlight = this.add.graphics();
     highlight.fillStyle(0xffffff, tile.isGold ? 0.65 : 0.4);
     highlight.fillRoundedRect(-TILE_W / 2 + 3, -TILE_H / 2 + 2, TILE_W - 6, 8, 4);
 
-    // Symbol text
     const symbolText = this.add.text(0, -2, tile.kind, {
       fontFamily: 'system-ui, "Segoe UI Emoji", AppleColorEmoji, sans-serif',
       fontSize: tile.isGold ? '24px' : tile.kind.length > 1 ? '18px' : '26px',
@@ -366,7 +425,6 @@ export class MahjongScene extends Phaser.Scene {
       fontStyle: 'bold',
     }).setOrigin(0.5);
 
-    // Golden tile extra aura shimmer
     if (tile.isGold) {
       this.tweens.add({
         targets: highlight,
@@ -386,14 +444,9 @@ export class MahjongScene extends Phaser.Scene {
     return container;
   }
 
-  /**
-   * Handles user tapping an open tile on the board
-   * (Vita Mahjong mechanic: tile flies into the top tray!)
-   */
   private handleTileClick(tile: Tile) {
     if (tile.removed || this.isProcessingFlight) return;
 
-    // Rule check: is tile free?
     const free = isFree(tile, this.tiles, this.levelConfig.stepX, this.levelConfig.stepY);
     if (!free) {
       this.soundMgr.playBump();
@@ -402,10 +455,8 @@ export class MahjongScene extends Phaser.Scene {
       return;
     }
 
-    // Check if tray has a free slot
     const freeSlotIndex = this.tray.findIndex(t => t === null);
     if (freeSlotIndex === -1) {
-      // TRAY IS COMPLETELY FULL (4/4) -> Danger!
       this.soundMgr.playBump();
       this.shakeTray();
       this.statusText.setText('⚠️ Лоток переполнен! Нет свободных слотов');
@@ -416,19 +467,15 @@ export class MahjongScene extends Phaser.Scene {
     this.isProcessingFlight = true;
     this.soundMgr.playTrayFly();
 
-    // Mark tile as in tray
     this.tray[freeSlotIndex] = tile;
-    tile.removed = true; // no longer blocks board tiles
+    tile.removed = true;
     this.moves++;
 
-    // Save undo step
     this.undoStack.push({ tile, fromTrayIndex: freeSlotIndex });
 
-    // Target position in world coordinates
     const targetX = this.getTraySlotX(freeSlotIndex);
     const targetY = TRAY_Y;
 
-    // Reparent sprite to root scene so it can fly freely over everything
     const sp = tile.sprite!;
     const worldX = this.boardContainer.x + sp.x;
     const worldY = this.boardContainer.y + sp.y;
@@ -438,7 +485,6 @@ export class MahjongScene extends Phaser.Scene {
     sp.setPosition(worldX, worldY);
     sp.setDepth(9999);
 
-    // Parabolic arc flight tween into tray
     this.tweens.add({
       targets: sp,
       x: targetX,
@@ -457,11 +503,7 @@ export class MahjongScene extends Phaser.Scene {
     this.updateHud();
   }
 
-  /**
-   * Checks if tray contains a matching pair
-   */
   private checkTrayMatches() {
-    // Find matching pair in tray
     let matchA = -1;
     let matchB = -1;
 
@@ -477,10 +519,8 @@ export class MahjongScene extends Phaser.Scene {
     }
 
     if (matchA !== -1 && matchB !== -1) {
-      // PAIR FOUND IN TRAY!
       this.handleTrayPairMatch(matchA, matchB);
     } else {
-      // Check if tray is full (4/4) without matches -> Game Over warning!
       const filledCount = this.tray.filter(t => t !== null).length;
       if (filledCount >= TRAY_CAPACITY) {
         this.checkTrayOverflow();
@@ -495,11 +535,9 @@ export class MahjongScene extends Phaser.Scene {
     const tileB = this.tray[indexB]!;
     const isGold = tileA.isGold || tileB.isGold;
 
-    // Remove from tray slots
     this.tray[indexA] = null;
     this.tray[indexB] = null;
 
-    // Combo calculation
     const now = this.time.now;
     if (this.lastMatchTime > 0 && now - this.lastMatchTime < 3500) {
       this.combo = Math.min(this.combo + 1, 5);
@@ -510,19 +548,14 @@ export class MahjongScene extends Phaser.Scene {
     }
     this.lastMatchTime = now;
 
-    // Score and real cash addition
     const pointsGained = 150 * this.combo;
     this.score += pointsGained;
 
-    // Cash into piggy bank: +15 ₽ for Gold, +2 ₽ for normal
     const cashRub = isGold ? 15 : 2;
     this.economy.addRub(cashRub);
     this.soundMgr.playCoin();
-
-    // Play chime sound
     this.soundMgr.playMatch(this.combo);
 
-    // Animate tiles merging in tray
     const midX = (this.getTraySlotX(indexA) + this.getTraySlotX(indexB)) / 2;
     for (const t of [tileA, tileB]) {
       if (t.sprite) {
@@ -542,16 +575,13 @@ export class MahjongScene extends Phaser.Scene {
       }
     }
 
-    // Spawn floating cash popup
     const popupText = isGold ? `🎉 ЗОЛОТО! +${this.currency.formatRub(cashRub)}` : `+${pointsGained} (${this.currency.formatRub(cashRub)})`;
     this.spawnScorePopup(midX, TRAY_Y - 20, popupText, isGold ? '#fef08a' : '#86efac');
 
-    // Slide remaining tray tiles to left
     this.time.delayedCall(200, () => {
       this.compactTray();
       this.updateHud();
 
-      // If Golden Pair was collected -> LAUNCH LUCKY WHEEL!
       if (isGold) {
         this.time.delayedCall(250, () => {
           WheelModal.show((reward) => {
@@ -562,16 +592,12 @@ export class MahjongScene extends Phaser.Scene {
         });
       }
 
-      // Check level win
       if (this.tiles.every(t => t.removed) && this.tray.every(t => t === null)) {
         this.handleLevelWin();
       }
     });
   }
 
-  /**
-   * Slides remaining tiles in the tray to the left to close gaps
-   */
   private compactTray() {
     const compact: Tile[] = [];
     for (let i = 0; i < TRAY_CAPACITY; i++) {
@@ -596,7 +622,6 @@ export class MahjongScene extends Phaser.Scene {
     this.soundMgr.playBump();
     this.shakeTray();
 
-    // Pulse red danger warning border on tray
     this.trayWarningGfx.clear();
     this.trayWarningGfx.lineStyle(3, 0xef4444, 1);
     this.trayWarningGfx.strokeRoundedRect(W / 2 - 115, -34, 230, 68, 16);
@@ -612,7 +637,6 @@ export class MahjongScene extends Phaser.Scene {
       },
     });
 
-    // Show overflow rescue modal
     const modal = this.add.container(W / 2, H / 2);
     modal.setDepth(99999);
 
@@ -644,7 +668,6 @@ export class MahjongScene extends Phaser.Scene {
     }).setOrigin(0.5);
     modal.add([icon, title, desc]);
 
-    // Button 1: Watch ad to clear 2 slots
     const adBtnBg = this.add.graphics();
     adBtnBg.fillStyle(0x15803d, 1);
     adBtnBg.fillRoundedRect(-120, 20, 240, 42, 21);
@@ -664,14 +687,12 @@ export class MahjongScene extends Phaser.Scene {
       this.adService.showRewardedAd('shuffle').then(watched => {
         if (watched) {
           modal.destroy();
-          // Remove 2 rightmost tiles from tray back to unremoved board
           this.removeTilesFromTray(2);
         }
       });
     });
     modal.add(adZone);
 
-    // Button 2: Undo last move
     const undoBtn = this.add.text(0, 95, '↶ Отменить последний ход', {
       fontFamily: 'system-ui, sans-serif',
       fontSize: '12px',
@@ -782,7 +803,6 @@ export class MahjongScene extends Phaser.Scene {
     }
 
     const last = this.undoStack.pop()!;
-    // Find where tile is
     const idx = this.tray.findIndex(t => t && t.id === last.tile.id);
     if (idx !== -1) {
       this.tray[idx] = null;
@@ -813,7 +833,6 @@ export class MahjongScene extends Phaser.Scene {
       return;
     }
 
-    // Check if there is already 1 tile in tray that we can match
     const trayTile = this.tray.find(t => t !== null);
     if (trayTile) {
       const matchOnBoard = this.tiles.find(t => !t.removed && t.kind === trayTile.kind && isFree(t, this.tiles, this.levelConfig.stepX, this.levelConfig.stepY));
@@ -910,7 +929,7 @@ export class MahjongScene extends Phaser.Scene {
         icon: '↻',
         title: 'ЗАНОВО',
         sub: 'Сброс',
-        action: () => this.scene.restart({ levelIndex: this.levelIndex }),
+        action: () => this.scene.restart({ levelNumber: this.levelNumber }),
       },
       {
         id: 'hint',
@@ -979,7 +998,6 @@ export class MahjongScene extends Phaser.Scene {
   private updateHud() {
     this.vaultButtonText?.setText(`🐷 ${this.economy.getFormattedBalance()}`);
 
-    // Smooth score number tween
     this.tweens.addCounter({
       from: this.displayedScore,
       to: this.score,
@@ -1005,6 +1023,7 @@ export class MahjongScene extends Phaser.Scene {
   private handleLevelWin() {
     this.soundMgr.playWin();
     if (this.timerEvent) this.timerEvent.destroy();
+    if (this.socialTimerEvent) this.socialTimerEvent.destroy();
 
     // Reward for completing level: +25 ₽ to Piggy Bank
     this.economy.addRub(25);
@@ -1017,7 +1036,8 @@ export class MahjongScene extends Phaser.Scene {
     const timeBonus = Math.max(0, (this.levelConfig.timeLimit - this.timeElapsed) * 5);
     this.score += timeBonus;
 
-    this.storage.saveLevelRecord(this.levelConfig.id, this.score, this.timeElapsed, stars);
+    // Save record and unlock next infinite level
+    this.storage.saveLevelRecord(this.levelNumber, this.score, this.timeElapsed, stars);
 
     // Win Modal
     const modal = this.add.container(W / 2, H / 2);
@@ -1050,7 +1070,6 @@ export class MahjongScene extends Phaser.Scene {
       color: '#facc15',
     }).setOrigin(0.5));
 
-    // Piggy Bank reward badge
     const cashBadge = this.add.text(0, -65, `🎁 В КОПИЛКУ: +${this.currency.formatRub(25)}`, {
       fontFamily: 'system-ui, sans-serif',
       fontSize: '15px',
@@ -1059,7 +1078,7 @@ export class MahjongScene extends Phaser.Scene {
     }).setOrigin(0.5);
     modal.add(cashBadge);
 
-    const stats = this.add.text(0, -20, `Счет: ${this.score.toLocaleString()} • Время: ${Math.floor(this.timeElapsed / 60)}:${(this.timeElapsed % 60).toString().padStart(2, '0')}`, {
+    const stats = this.add.text(0, -20, `Счет: ${this.score.toLocaleString()} • Уровень ${this.levelNumber} пройден!`, {
       fontFamily: 'system-ui, sans-serif',
       fontSize: '12px',
       color: '#cbd5e1',
@@ -1098,16 +1117,16 @@ export class MahjongScene extends Phaser.Scene {
     });
     modal.add(doubleZone);
 
-    // Next Level Button
-    const nextIdx = this.levelIndex + 1 < LEVELS.length ? this.levelIndex + 1 : 0;
+    // Next Level Button (INFINITE PROGRESSION: Level N + 1)
+    const nextLevelNum = this.levelNumber + 1;
     const nextBg = this.add.graphics();
     nextBg.fillStyle(0x15803d, 1);
     nextBg.fillRoundedRect(-125, 75, 250, 42, 21);
     modal.add(nextBg);
 
-    const nextText = this.add.text(0, 96, this.levelIndex + 1 < LEVELS.length ? 'СЛЕДУЮЩИЙ УРОВЕНЬ ▶' : 'СЫГРАТЬ СНАЧАЛА ↻', {
+    const nextText = this.add.text(0, 96, `УРОВЕНЬ ${nextLevelNum} ▶`, {
       fontFamily: 'system-ui, sans-serif',
-      fontSize: '12px',
+      fontSize: '13px',
       color: '#ffffff',
       fontStyle: 'bold',
     }).setOrigin(0.5);
@@ -1117,7 +1136,7 @@ export class MahjongScene extends Phaser.Scene {
     nextZone.on('pointerdown', () => {
       this.soundMgr.playTileClick();
       modal.destroy();
-      this.scene.restart({ levelIndex: nextIdx });
+      this.scene.restart({ levelNumber: nextLevelNum });
     });
     modal.add(nextZone);
 
@@ -1132,6 +1151,9 @@ export class MahjongScene extends Phaser.Scene {
     modal.add(vaultLink);
   }
 
+  /**
+   * Level selector modal with pagination supporting up to level 10,000+
+   */
   private showLevelSelectModal() {
     this.soundMgr.playTileClick();
     const modal = this.add.container(W / 2, H / 2);
@@ -1145,8 +1167,8 @@ export class MahjongScene extends Phaser.Scene {
     const panel = this.add.graphics();
     panel.fillStyle(0x062e25, 0.98);
     panel.lineStyle(1.5, 0x16a34a, 1);
-    panel.fillRoundedRect(-155, -200, 310, 400, 20);
-    panel.strokeRoundedRect(-155, -200, 310, 400, 20);
+    panel.fillRoundedRect(-155, -200, 310, 410, 20);
+    panel.strokeRoundedRect(-155, -200, 310, 410, 20);
     modal.add(panel);
 
     const title = this.add.text(0, -170, 'ВЫБОР УРОВНЯ', {
@@ -1157,49 +1179,83 @@ export class MahjongScene extends Phaser.Scene {
     }).setOrigin(0.5);
     modal.add(title);
 
-    const unlocked = this.storage.getUnlockedLevel();
+    const maxUnlocked = this.storage.getUnlockedLevel();
+    // Show 6 levels centered around current selection
+    let pageStart = Math.max(1, Math.floor((this.levelNumber - 1) / 6) * 6 + 1);
 
-    LEVELS.forEach((lvl, idx) => {
-      const isUnlocked = lvl.id <= unlocked;
-      const rec = this.storage.getLevelRecord(lvl.id);
-      const y = -120 + idx * 58;
+    const contentContainer = this.add.container(0, 0);
+    modal.add(contentContainer);
 
-      const itemBg = this.add.graphics();
-      itemBg.fillStyle(isUnlocked ? 0x0f5546 : 0x1e293b, 0.85);
-      if (idx === this.levelIndex) {
-        itemBg.lineStyle(1.5, 0xfacc15, 1);
-      }
-      itemBg.fillRoundedRect(-135, y, 270, 48, 12);
-      if (idx === this.levelIndex) itemBg.strokeRoundedRect(-135, y, 270, 48, 12);
-      modal.add(itemBg);
+    const renderPage = (start: number) => {
+      contentContainer.removeAll(true);
 
-      const lvlText = this.add.text(-120, y + 15, `${lvl.id}. ${lvl.name}`, {
-        fontFamily: 'system-ui, sans-serif',
-        fontSize: '13px',
-        color: isUnlocked ? '#ffffff' : '#64748b',
-        fontStyle: 'bold',
-      });
-      modal.add(lvlText);
+      for (let i = 0; i < 6; i++) {
+        const lvl = start + i;
+        const isUnlocked = lvl <= maxUnlocked;
+        const rec = this.storage.getLevelRecord(lvl);
+        const y = -120 + i * 44;
 
-      const starsText = this.add.text(-120, y + 31, isUnlocked ? `${'★'.repeat(rec.stars)}${'☆'.repeat(3 - rec.stars)} • Рекорд: ${rec.highScore}` : '🔒 Заблокировано', {
-        fontFamily: 'system-ui, sans-serif',
-        fontSize: '10px',
-        color: isUnlocked ? '#facc15' : '#64748b',
-      });
-      modal.add(starsText);
+        const itemBg = this.add.graphics();
+        itemBg.fillStyle(isUnlocked ? 0x0f5546 : 0x1e293b, 0.85);
+        if (lvl === this.levelNumber) {
+          itemBg.lineStyle(1.5, 0xfacc15, 1);
+        }
+        itemBg.fillRoundedRect(-135, y, 270, 38, 10);
+        if (lvl === this.levelNumber) itemBg.strokeRoundedRect(-135, y, 270, 38, 10);
+        contentContainer.add(itemBg);
 
-      if (isUnlocked) {
-        const playZone = this.add.zone(0, y + 24, 270, 48).setInteractive({ useHandCursor: true });
-        playZone.on('pointerdown', () => {
-          this.soundMgr.playTileClick();
-          modal.destroy();
-          this.scene.restart({ levelIndex: idx });
+        const lvlCfg = InfiniteLevelGenerator.getLevelConfig(lvl);
+        const lvlText = this.add.text(-120, y + 11, `${lvl}. ${lvlCfg.name}`, {
+          fontFamily: 'system-ui, sans-serif',
+          fontSize: '12px',
+          color: isUnlocked ? '#ffffff' : '#64748b',
+          fontStyle: 'bold',
         });
-        modal.add(playZone);
-      }
-    });
+        contentContainer.add(lvlText);
 
-    const closeBtn = this.add.text(0, 175, 'ЗАКРЫТЬ', {
+        const starsText = this.add.text(120, y + 11, isUnlocked ? (rec.completed ? '★'.repeat(rec.stars) : 'НОВЫЙ') : '🔒', {
+          fontFamily: 'system-ui, sans-serif',
+          fontSize: '11px',
+          color: isUnlocked ? '#facc15' : '#64748b',
+        }).setOrigin(1, 0);
+        contentContainer.add(starsText);
+
+        if (isUnlocked) {
+          const playZone = this.add.zone(0, y + 19, 270, 38).setInteractive({ useHandCursor: true });
+          playZone.on('pointerdown', () => {
+            this.soundMgr.playTileClick();
+            modal.destroy();
+            this.scene.restart({ levelNumber: lvl });
+          });
+          contentContainer.add(playZone);
+        }
+      }
+
+      // Page Navigation buttons
+      const prevBtn = this.add.text(-80, 150, '◀ Назад', {
+        fontFamily: 'system-ui, sans-serif',
+        fontSize: '11px',
+        color: start > 1 ? '#38bdf8' : '#64748b',
+      }).setOrigin(0.5).setInteractive({ useHandCursor: start > 1 });
+      prevBtn.on('pointerdown', () => {
+        if (start > 1) renderPage(start - 6);
+      });
+      contentContainer.add(prevBtn);
+
+      const nextBtn = this.add.text(80, 150, 'Вперед ▶', {
+        fontFamily: 'system-ui, sans-serif',
+        fontSize: '11px',
+        color: '#38bdf8',
+      }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+      nextBtn.on('pointerdown', () => {
+        renderPage(start + 6);
+      });
+      contentContainer.add(nextBtn);
+    };
+
+    renderPage(pageStart);
+
+    const closeBtn = this.add.text(0, 182, 'ЗАКРЫТЬ', {
       fontFamily: 'system-ui, sans-serif',
       fontSize: '12px',
       color: '#94a3b8',
