@@ -1,0 +1,20 @@
+{
+  "name": "Leaf Mahjong — Пасьянс Маджонг",
+  "short_name": "Leaf Mahjong",
+  "description": "Красивый пасьянс маджонг с турнирами, гарантированной решаемостью и наградами",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#09382f",
+  "theme_color": "#09382f",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["games", "puzzle"]
+}

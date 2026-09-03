@@ -1,28 +1,50 @@
-# Leaf Mahjong
+# Leaf Mahjong — Пасьянс Маджонг
 
-Original mobile-first Mahjong Solitaire prototype built with Phaser 3 + TypeScript.
+Полноценная мобильная веб-игра (HTML5 Canvas / PWA) на **Phaser 3 + TypeScript + Vite**.
 
-## Level 1
+## ✨ Особенности игры
 
-- 48 tiles across three layers
-- Guaranteed-solvable pairing order
-- Open-tile rules with blocking by the layer above and by both horizontal sides
-- Touch-friendly controls
-- Hint and restart controls
-- Level-complete screen
-- Responsive 390x760 game canvas for phone testing
+- **5 уникальных уровней с нарастающей сложностью**:
+  1. *Росток* (32 кости, 2 слоя) — легкий вход и обучение
+  2. *Черепаха* (44 кости, 3 слоя) — классический маджонг
+  3. *Пирамида* (52 кости, 3 слоя) — стратегическая раскладка
+  4. *Крепость* (60 костей, 3 слоя) — испытание для опытных игроков
+  5. *Дракон* (68 костей, 3 слоя) — сложный уровень для гранд-мастеров
+- **100% гарантированная решаемость**: алгоритм обратной сборки гарантирует, что каждый уровень имеет победный путь решения.
+- **Полноценный стек Undo**: возврат снятых пар костей на их точные слои с анимацией и пересчетом очков.
+- **Умный Shuffle (перемешивание)**: при отсутствии ходов или по желанию перетасовывает кости так, чтобы гарантированно открыть как минимум одну доступную пару.
+- **Система Combo и счет**: множители очков (x2, x3, x4, x5) за быстрый подбор пар подряд, таймер уровня и 3-звездочный рейтинг.
+- **Встроенный Web Audio API синтезатор**: стук костяшек, приятный звон пары, предупреждающий бамп, шелест перемешивания и победный джингл без необходимости загружать тяжелые звуковые файлы.
+- **PWA (Progressive Web App)**: манифест, иконка и сервис-воркер — игру можно установить на экран iPhone/Android в один клик и играть оффлайн без интернета.
+- **Монетизация и Турниры**:
+  - Интерактивный эмулятор Rewarded-видеорекламы (+3 подсказки, перемешивание, удвоение очков в конце уровня).
+  - Готовые хуки для подключения **Яндекс Игр SDK**, **Google H5 Ads**, **CrazyGames**.
+  - Экран еженедельного турнира с призовым фондом (50 000 ₽) и таблицей лидеров по легальной схеме публичного конкурса мастерства (ст. 1057 ГК РФ).
 
-## Run locally
+---
 
+## 🚀 Запуск и тестирование
+
+### 1. Локальный запуск на компьютере:
 ```bash
 npm install
 npm run dev
 ```
+Откройте в браузере адрес (например, `http://localhost:5173/`), нажмите `F12` (или `Cmd+Option+I`) и включите мобильный режим.
 
-Build for production:
-
+### 2. Сборка для продакшена:
 ```bash
 npm run build
 ```
+Готовые оптимизированные файлы сформируются в папке `dist/`.
 
-The project is intentionally small at this stage. The next iterations can add richer original artwork, a real undo stack, shuffle/recovery, level progression, difficulty scoring, persistence, ads and analytics.
+### 3. Публикация на Vercel (1 минута):
+1. Откройте [vercel.com](https://vercel.com) и войдите через свой GitHub.
+2. Нажмите **Add New... -> Project**, выберите репозиторий `mahjong-game`.
+3. Нажмите **Deploy**. Игра моментально станет доступна по ссылке `https://mahjong-game-xxx.vercel.app`.
+
+### 4. Публикация на GitHub Pages:
+В репозитории уже настроен GitHub Action `.github/workflows/deploy.yml`:
+1. В репозитории GitHub перейдите в **Settings -> Pages**.
+2. В секции **Build and deployment -> Source** выберите **GitHub Actions**.
+3. При каждом пуше игра автоматически будет публиковаться на `https://rednaxelavoroge.github.io/mahjong-game/`.
